@@ -17,7 +17,7 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* ---------- PUBLIC ROUTES ---------- */}
+          
           <Route path="/login" element={<LoginPage />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
