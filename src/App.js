@@ -11,6 +11,7 @@ import Shifts from "./Admin/Shifts";
 import Attendance from "./Admin/Attendance";
 import Leaves from "./Admin/Leaves";
 import Dashboard from "./Admin/Dashboard";
+import Shops from "./Admin/Shops";
 
 function App() {
   return (
@@ -29,6 +30,8 @@ function App() {
     <Route path="shifts" element={<Shifts />} />
     <Route path="attendance" element={<Attendance />} />
     <Route path="leaves" element={<Leaves />} />
+    <Route path="shops" element={<Shops />} />
+
   </Route>
 </Route>
         </Routes>

@@ -3,6 +3,7 @@ import {
   getUsers,
   getAttendance,
   getLeaves,
+    // getShops, 
 } from "../Api/dashboard.api";
 import {
   FiUsers,
@@ -13,8 +14,10 @@ import {
   FiRefreshCw,
   FiArrowUp,
   FiArrowDown,
+ FiShoppingBag,  
   FiMinus,
 } from "react-icons/fi";
+import { getShops } from "../Api/shops.api";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 const todayLabel = new Date().toLocaleDateString("en-US", {
@@ -97,7 +100,7 @@ const HBar = ({ label, value, total, accent, loading }) => {
 // ─── Dashboard ─────────────────────────────────────────────────────────────
 const Dashboard = () => {
   const [stats, setStats] = useState({
-    users: 0, present: 0, absent: 0, pendingLeaves: 0, todayCheckins: 0,
+    users: 0, present: 0, absent: 0, pendingLeaves: 0, todayCheckins: 0,  shops: 0,
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -107,12 +110,13 @@ const Dashboard = () => {
   const fetchData = async (isRefresh = false) => {
     isRefresh ? setRefreshing(true) : setLoading(true);
     try {
-      const [usersRes, attRes, leaveRes] = await Promise.all([
-        getUsers(), getAttendance(), getLeaves(),
+      const [usersRes, attRes, leaveRes,shopsRes] = await Promise.all([
+        getUsers(), getAttendance(), getLeaves(),  getShops(),
       ]);
       const users      = usersRes.data?.data || [];
       const attendance = attRes.data?.data?.data || [];
       const leaves     = leaveRes.data?.data || [];
+      const shops      = shopsRes.data?.data || shopsRes.data || []; 
       const todayAtt   = attendance.filter((a) => a.check_in?.startsWith(today));
       setStats({
         users:         users.length,
@@ -120,6 +124,7 @@ const Dashboard = () => {
         absent:        users.length - todayAtt.length,
         pendingLeaves: leaves.filter((l) => l.status === "pending").length,
         todayCheckins: todayAtt.length,
+          shops:         shops.length,
       });
     } catch (err) {
       console.error("Dashboard error:", err);
@@ -140,6 +145,7 @@ const Dashboard = () => {
     { label: "Absent Today",      value: stats.absent,        icon: FiUserX,     accent: "#ef4444", sub: "No check-in recorded" },
     { label: "Pending Leaves",    value: stats.pendingLeaves, icon: FiFileText,  accent: "#f59e0b", sub: "Awaiting approval" },
     { label: "Today's Check-ins", value: stats.todayCheckins, icon: FiLogIn,     accent: "#3b82f6", sub: "Active today" },
+      { label: "Total Shops",       value: stats.shops,         icon: FiShoppingBag,  accent: "#8b5cf6", sub: "Registered locations" },
   ];
 
   return (
@@ -164,7 +170,7 @@ const Dashboard = () => {
       <div className="px-8 py-8 space-y-6 max-w-7xl">
 
         {/* ── Metric Cards ── */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+<div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
           {metrics.map((m, i) => (
             <MetricCard key={m.label} {...m} loading={loading} index={i} />
           ))}

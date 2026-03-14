@@ -55,7 +55,9 @@ const StatusBadge = ({ status }) => {
     </span>
   );
 };
-
+const getMapUrl = (lat, lng) => {
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+};
 // ─── Photo Modal ───────────────────────────────────────────────────────────
 const PhotoModal = ({ photos, onClose }) => (
   <div
@@ -77,25 +79,49 @@ const PhotoModal = ({ photos, onClose }) => (
           <FiX size={16} />
         </button>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-        {photos.map(
-          (t) =>
-            t.photo_url && (
-              <div key={t.id}>
-                <img
-                  src={t.photo_url}
-                  alt="attendance"
-                  className="w-full aspect-square object-cover rounded-xl border-2 border-gray-100 hover:scale-105 transition-transform cursor-zoom-in"
-                />
-                {t.captured_at && (
-                  <p className="text-center text-[11px] text-gray-400 mt-1 font-mono">
-                    {fmt(t.captured_at)?.time}
-                  </p>
-                )}
-              </div>
-            )
-        )}
-      </div>
+<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+  {photos.map(
+    (t) =>
+      t.photo_url && (
+        <div
+          key={t.id}
+          className="bg-gray-50 rounded-xl p-2 border border-gray-100"
+        >
+          <img
+            src={t.photo_url}
+            alt="attendance"
+            className="w-full aspect-square object-cover rounded-lg"
+          />
+
+          <div className="mt-2 space-y-1 text-center">
+
+            {/* Time */}
+            <p className="text-[11px] text-gray-500 font-mono">
+              {fmt(t.created_at)?.time}
+            </p>
+
+            {/* Location Type */}
+            <p className="text-[11px] font-semibold text-indigo-600 capitalize">
+              {t.location_type}
+            </p>
+
+            {/* Map Link */}
+            {t.lat && t.lng && (
+              <a
+                href={getMapUrl(t.lat, t.lng)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] text-blue-500 hover:underline"
+              >
+                View Location
+              </a>
+            )}
+
+          </div>
+        </div>
+      )
+  )}
+</div>
     </div>
   </div>
 );
@@ -222,7 +248,8 @@ const CheckIns = () => {
   const [modalPhotos, setModalPhotos] = useState(null);
   const [sortKey, setSortKey] = useState("check_in");
   const [sortDir, setSortDir] = useState("desc");
-
+const [currentPage, setCurrentPage] = useState(1);
+const itemsPerPage = 10;
   const fetchLogs = async () => {
     setLoading(true);
     try {
@@ -273,7 +300,12 @@ const CheckIns = () => {
     });
     return arr;
   }, [logs, search, statusFilter, sortKey, sortDir]);
+const totalPages = Math.ceil(filtered.length / itemsPerPage);
 
+const paginatedData = useMemo(() => {
+  const start = (currentPage - 1) * itemsPerPage;
+  return filtered.slice(start, start + itemsPerPage);
+}, [filtered, currentPage]);
   const toggleSort = (key) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(key); setSortDir("desc"); }
@@ -285,7 +317,9 @@ const CheckIns = () => {
     ) : (
       <span className="ml-1 opacity-30">↕</span>
     );
-
+useEffect(() => {
+  setCurrentPage(1);
+}, [search, statusFilter]);
   return (
     <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
 
@@ -423,7 +457,7 @@ const CheckIns = () => {
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((log) => (
+                 paginatedData.map((log) => (
                     <AttendanceRow
                       key={log.id}
                       log={log}
@@ -434,6 +468,60 @@ const CheckIns = () => {
                 )}
               </tbody>
             </table>
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+
+  <span className="text-xs text-gray-400 font-medium">
+    Showing {(currentPage - 1) * itemsPerPage + 1} –
+    {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length}
+  </span>
+
+  <div className="flex items-center gap-1">
+
+    {/* Prev */}
+    <button
+      disabled={currentPage === 1}
+      onClick={() => setCurrentPage((p) => p - 1)}
+      className="px-3 py-1.5 text-xs font-semibold text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-40"
+    >
+      Prev
+    </button>
+
+    {/* Only 5 Pages */}
+    {(() => {
+      const pages = [];
+      const start = Math.max(1, currentPage - 2);
+      const end = Math.min(totalPages, currentPage + 2);
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      return pages.map((page) => (
+        <button
+          key={page}
+          onClick={() => setCurrentPage(page)}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg
+            ${currentPage === page
+              ? "bg-indigo-500 text-white"
+              : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+            }`}
+        >
+          {page}
+        </button>
+      ));
+    })()}
+
+    {/* Next */}
+    <button
+      disabled={currentPage === totalPages}
+      onClick={() => setCurrentPage((p) => p + 1)}
+      className="px-3 py-1.5 text-xs font-semibold text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-40"
+    >
+      Next
+    </button>
+
+  </div>
+</div>
           </div>
         )}
       </div>

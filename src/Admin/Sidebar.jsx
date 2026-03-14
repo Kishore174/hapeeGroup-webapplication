@@ -19,6 +19,8 @@ const menuItems = [
   { name: "Shifts",       path: "/shifts",    icon: MdOutlineSchedule,   roles: ["admin"] },
   { name: "Attendance",   path: "/attendance",icon: MdOutlineFactCheck,  roles: ["admin"] },
   { name: "Leaves",       path: "/leaves",    icon: MdOutlineEventBusy,  roles: ["admin"] },
+  { name: "Shops",       path: "/shops",    icon: MdOutlineEventBusy,  roles: ["admin"] },
+
 ];
 
 const Sidebar = ({ isSidebarOpen, setIsSidebarOpen }) => {

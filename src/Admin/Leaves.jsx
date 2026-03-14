@@ -134,7 +134,8 @@ const Leaves = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating]   = useState(null);
   const [confirm, setConfirm]     = useState(null); // { id, action, name }
-
+const [currentPage, setCurrentPage] = useState(1);
+const itemsPerPage = 10;
   const fetchData = async (isRefresh = false) => {
     isRefresh ? setRefreshing(true) : setLoading(true);
     try {
@@ -159,6 +160,12 @@ const Leaves = () => {
     leaves.filter((l) => (statusFilter ? l.status === statusFilter : true)),
     [leaves, statusFilter]
   );
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+
+const paginatedData = useMemo(() => {
+  const start = (currentPage - 1) * itemsPerPage;
+  return filtered.slice(start, start + itemsPerPage);
+}, [filtered, currentPage]);
 
   const stats = useMemo(() => ({
     total:    leaves.length,
@@ -177,7 +184,9 @@ const Leaves = () => {
     await fetchData();
     setUpdating(null);
   };
-
+useEffect(() => {
+  setCurrentPage(1);
+}, [statusFilter]);
   return (
     <div className="min-h-screen bg-[#f8f9fc]">
 
@@ -277,7 +286,7 @@ const Leaves = () => {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((l) => {
+                   paginatedData.map((l) => {
                       const user = userMap[l.user_id];
                       const days = daysBetween(l.from_date, l.to_date);
                       const isUpdating = updating === l.id;
@@ -371,6 +380,61 @@ const Leaves = () => {
                     })
                   )}
                 </tbody>
+                {/* Pagination */}
+<div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+
+  <span className="text-xs text-gray-400 font-medium">
+    Showing {(currentPage - 1) * itemsPerPage + 1} –
+    {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length}
+  </span>
+
+  <div className="flex items-center gap-1">
+
+    {/* Prev */}
+    <button
+      disabled={currentPage === 1}
+      onClick={() => setCurrentPage((p) => p - 1)}
+      className="px-3 py-1.5 text-xs font-semibold text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-40"
+    >
+      Prev
+    </button>
+
+    {/* Only 5 page numbers */}
+    {(() => {
+      const pages = [];
+      const start = Math.max(1, currentPage - 2);
+      const end = Math.min(totalPages, currentPage + 2);
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      return pages.map((page) => (
+        <button
+          key={page}
+          onClick={() => setCurrentPage(page)}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg
+            ${currentPage === page
+              ? "bg-indigo-500 text-white"
+              : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+            }`}
+        >
+          {page}
+        </button>
+      ));
+    })()}
+
+    {/* Next */}
+    <button
+      disabled={currentPage === totalPages}
+      onClick={() => setCurrentPage((p) => p + 1)}
+      className="px-3 py-1.5 text-xs font-semibold text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-40"
+    >
+      Next
+    </button>
+
+  </div>
+</div>
               </table>
             </div>
           )}

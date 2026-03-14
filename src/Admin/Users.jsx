@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   getUsers,
   createUser,
@@ -20,8 +20,17 @@ import {
   FiUserCheck,
   FiChevronDown,
 } from "react-icons/fi";
-
-const emptyForm = { name: "", email: "", phone: "", password: "", role: "employee" };
+import Select from "react-select";
+import { axiosInstance } from "../Api/config";
+import { getShops } from "../Api/shops.api";
+const emptyForm = {
+  name: "",
+  email: "",
+  phone: "",
+  password: "",
+  role: "employee",
+  shops: [],
+};
 
 // ─── Avatar ────────────────────────────────────────────────────────────────
 const Avatar = ({ name, size = "md" }) => {
@@ -80,9 +89,14 @@ const Field = ({ icon: Icon, label, children }) => (
 );
 
 // ─── Modal ─────────────────────────────────────────────────────────────────
-const UserModal = ({ isEdit, form, setForm, onSubmit, onClose }) => (
+const UserModal = ({ isEdit, form, setForm, onSubmit, onClose ,shops}) => {
+  const shopOptions = (shops || []).map((shop) => ({
+  value: String(shop.id),
+  label: shop.shop_name,
+}));
+  return (
   <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
+    <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden">
       {/* Modal header */}
       <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
         <div>
@@ -154,7 +168,39 @@ const UserModal = ({ isEdit, form, setForm, onSubmit, onClose }) => (
             </select>
           </div>
         </div>
+<div>
+ 
+<div>
+  <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+    Assign Shops
+  </label>
 
+  <Select
+    isMulti
+    options={shopOptions}
+    placeholder="Search and select shops..."
+    value={shopOptions.filter((opt) =>
+      form.shops.includes(opt.value)
+    )}
+    onChange={(selected) =>
+      setForm({
+        ...form,
+        shops: selected ? selected.map((s) => s.value) : [],
+      })
+    }
+    className="text-sm"
+    classNamePrefix="select"
+  />
+
+  <p className="text-xs text-gray-400 mt-1">
+    Search and select multiple shops
+  </p>
+</div>
+
+  <p className="text-xs text-gray-400 mt-1">
+    Hold CTRL to select multiple shops
+  </p>
+</div>
         <div className="flex gap-3 pt-2">
           <button
             type="button"
@@ -174,6 +220,7 @@ const UserModal = ({ isEdit, form, setForm, onSubmit, onClose }) => (
     </div>
   </div>
 );
+}
 
 // ─── Main ──────────────────────────────────────────────────────────────────
 const Users = () => {
@@ -186,7 +233,19 @@ const Users = () => {
   const [currentId, setCurrentId]   = useState(null);
   const [form, setForm]             = useState(emptyForm);
   const [deletingId, setDeletingId] = useState(null);
-
+const [shops, setShops] = useState([]);
+const [currentPage, setCurrentPage] = useState(1);
+const itemsPerPage = 10;
+const fetchShops = async () => {
+  try {
+    const res = await getShops();
+    const list = Array.isArray(res.data) ? res.data : res.data?.data;
+    setShops(list || []);
+  } catch (err) {
+    console.error(err);
+    setShops([]);
+  }
+};
   const fetchUsers = async () => {
     try {
       const res  = await getUsers();
@@ -200,7 +259,7 @@ const Users = () => {
     }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  // useEffect(() => { fetchUsers(); }, []);
 
   const openAdd = () => {
     setIsEdit(false); setCurrentId(null);
@@ -209,18 +268,44 @@ const Users = () => {
 
   const openEdit = (user) => {
     setIsEdit(true); setCurrentId(user.id);
-    setForm({ name: user.name, email: user.email, phone: user.phone || "", password: "", role: user.role });
+   setForm({
+  name: user.name,
+  email: user.email,
+  phone: user.phone || "",
+  password: "",
+  role: user.role,
+  shops: user.shops ? user.shops.map(s => String(s.id)) : []
+});
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const payload = { ...form };
-    if (isEdit && !payload.password) delete payload.password;
-    isEdit ? await updateUser(currentId, payload) : await createUser(payload);
-    setIsModalOpen(false);
-    fetchUsers();
-  };
+const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  let userId;
+
+if (isEdit) {
+  await updateUser(currentId, form);
+  userId = currentId;
+} else {
+  const { shops, ...userData } = form;
+  const res = await createUser(userData);
+  userId = res.data?.id;
+}
+  // Assign shops
+  if (form.shops.length > 0) {
+    await Promise.all(
+      form.shops.map((shopId) =>
+        axiosInstance.post(`/shops/${shopId}/assign`, {
+          employee_id: userId,
+        })
+      )
+    );
+  }
+
+  setIsModalOpen(false);
+  fetchUsers();
+};
 
   const handleDelete = async (id) => {
     if (!window.confirm("Disable this user?")) return;
@@ -240,7 +325,19 @@ const Users = () => {
   const total   = users.length;
   const active  = users.filter((u) => u.is_active).length;
   const admins  = users.filter((u) => u.role === "admin").length;
+const totalPages = Math.ceil(filtered.length / itemsPerPage);
 
+const paginatedData = useMemo(() => {
+  const start = (currentPage - 1) * itemsPerPage;
+  return filtered.slice(start, start + itemsPerPage);
+}, [filtered, currentPage]);
+useEffect(() => {
+  fetchUsers();
+  fetchShops();
+}, []);
+useEffect(() => {
+  setCurrentPage(1);
+}, [search, roleFilter]);
   return (
     <div className="min-h-screen bg-[#f8f9fc]">
 
@@ -316,98 +413,150 @@ const Users = () => {
               <p className="text-sm">Loading users…</p>
             </div>
           ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-gray-300">User</th>
-                  <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-gray-300 hidden md:table-cell">Contact</th>
-                  <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-gray-300">Role</th>
-                  <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-gray-300">Status</th>
-                  <th className="px-6 py-4 text-right text-[11px] font-black uppercase tracking-widest text-gray-300">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-16 text-center">
-                      <FiUsers size={28} className="mx-auto text-gray-200 mb-3" />
-                      <p className="text-sm text-gray-400">No users match your search</p>
-                    </td>
+            <><table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-gray-300">User</th>
+                    <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-gray-300 hidden md:table-cell">Contact</th>
+                    <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-gray-300">Role</th>
+                    <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-gray-300">Status</th>
+                    <th className="px-6 py-4 text-right text-[11px] font-black uppercase tracking-widest text-gray-300">Actions</th>
                   </tr>
-                ) : (
-                  filtered.map((u) => (
-                    <tr
-                      key={u.id}
-                      className="border-b border-gray-50 hover:bg-indigo-50/20 transition-colors last:border-0"
-                    >
-                      {/* User cell */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar name={u.name} />
-                          <div>
-                            <p className="text-sm font-bold text-gray-800 leading-tight">{u.name}</p>
-                            <p className="text-xs text-gray-400 mt-0.5">{u.email}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Contact */}
-                      <td className="px-6 py-4 hidden md:table-cell">
-                        <p className="text-sm text-gray-500">{u.phone || <span className="text-gray-300">—</span>}</p>
-                      </td>
-
-                      {/* Role */}
-                      <td className="px-6 py-4">
-                        <RoleBadge role={u.role} />
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-6 py-4">
-                        <StatusDot active={u.is_active} />
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => openEdit(u)}
-                            className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-all"
-                            title="Edit"
-                          >
-                            <FiEdit2 size={13} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(u.id)}
-                            disabled={deletingId === u.id}
-                            className="w-8 h-8 rounded-xl bg-red-50 text-red-400 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all disabled:opacity-40"
-                            title="Disable"
-                          >
-                            {deletingId === u.id
-                              ? <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin" />
-                              : <FiUserX size={13} />
-                            }
-                          </button>
-                        </div>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-16 text-center">
+                        <FiUsers size={28} className="mx-auto text-gray-200 mb-3" />
+                        <p className="text-sm text-gray-400">No users match your search</p>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    paginatedData.map((u) => (
+                      <tr
+                        key={u.id}
+                        className="border-b border-gray-50 hover:bg-indigo-50/20 transition-colors last:border-0"
+                      >
+                        {/* User cell */}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <Avatar name={u.name} />
+                            <div>
+                              <p className="text-sm font-bold text-gray-800 leading-tight">{u.name}</p>
+                              <p className="text-xs text-gray-400 mt-0.5">{u.email}</p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Contact */}
+                        <td className="px-6 py-4 hidden md:table-cell">
+                          <p className="text-sm text-gray-500">{u.phone || <span className="text-gray-300">—</span>}</p>
+                        </td>
+
+                        {/* Role */}
+                        <td className="px-6 py-4">
+                          <RoleBadge role={u.role} />
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-6 py-4">
+                          <StatusDot active={u.is_active} />
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => openEdit(u)}
+                              className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-all"
+                              title="Edit"
+                            >
+                              <FiEdit2 size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(u.id)}
+                              disabled={deletingId === u.id}
+                              className="w-8 h-8 rounded-xl bg-red-50 text-red-400 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all disabled:opacity-40"
+                              title="Disable"
+                            >
+                              {deletingId === u.id
+                                ? <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin" />
+                                : <FiUserX size={13} />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+
+              </table><div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+
+                  <span className="text-xs text-gray-400 font-medium">
+                    Showing {(currentPage - 1) * itemsPerPage + 1} –
+                    {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length}
+                  </span>
+
+                  <div className="flex items-center gap-1">
+
+                    {/* Prev */}
+                    <button
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage((p) => p - 1)}
+                      className="px-3 py-1.5 text-xs font-semibold text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-40"
+                    >
+                      Prev
+                    </button>
+
+                    {/* Max 5 pages */}
+                    {(() => {
+                      const pages = [];
+                      const start = Math.max(1, currentPage - 2);
+                      const end = Math.min(totalPages, currentPage + 2);
+
+                      for (let i = start; i <= end; i++) {
+                        pages.push(i);
+                      }
+
+                      return pages.map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg
+            ${currentPage === page
+                              ? "bg-indigo-500 text-white"
+                              : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                        >
+                          {page}
+                        </button>
+                      ));
+                    })()}
+
+                    {/* Next */}
+                    <button
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage((p) => p + 1)}
+                      className="px-3 py-1.5 text-xs font-semibold text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-40"
+                    >
+                      Next
+                    </button>
+
+                  </div>
+                </div></>
           )}
         </div>
       </div>
 
-      {/* ── Modal ── */}
-      {isModalOpen && (
-        <UserModal
-          isEdit={isEdit}
-          form={form}
-          setForm={setForm}
-          onSubmit={handleSubmit}
-          onClose={() => setIsModalOpen(false)}
-        />
-      )}
+{isModalOpen && (
+  <UserModal
+    isEdit={isEdit}
+    form={form}
+    setForm={setForm}
+    shops={shops}   // ✅ PASS SHOPS HERE
+    onSubmit={handleSubmit}
+    onClose={() => setIsModalOpen(false)}
+  />
+)}
     </div>
   );
 };

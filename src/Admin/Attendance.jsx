@@ -99,7 +99,8 @@ const Attendance = () => {
   const [userId, setUserId]   = useState("");
   const [search, setSearch]   = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-
+const [currentPage, setCurrentPage] = useState(1);
+const itemsPerPage = 10;
   const fetchData = async (isRefresh = false) => {
     isRefresh ? setRefreshing(true) : setLoading(true);
     try {
@@ -134,7 +135,12 @@ const Attendance = () => {
       return true;
     });
   }, [records, date, userId, statusFilter, search, userMap]);
+const totalPages = Math.ceil(filtered.length / itemsPerPage);
 
+const paginatedData = useMemo(() => {
+  const start = (currentPage - 1) * itemsPerPage;
+  return filtered.slice(start, start + itemsPerPage);
+}, [filtered, currentPage]);
   // Summary stats from filtered
   const summary = useMemo(() => ({
     total:      filtered.length,
@@ -145,7 +151,9 @@ const Attendance = () => {
 
   const hasFilters = date || userId || statusFilter || search;
   const clearAll = () => { setDate(""); setUserId(""); setStatusFilter(""); setSearch(""); };
-
+useEffect(() => {
+  setCurrentPage(1);
+}, [date, userId, statusFilter, search]);
   return (
     <div className="min-h-screen bg-[#f8f9fc]">
 
@@ -293,7 +301,7 @@ const Attendance = () => {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((r) => {
+                  paginatedData.map((r) => {
                       const user = userMap[r.user_id];
                       return (
                         <tr key={r.id} className="border-b border-gray-50 hover:bg-indigo-50/20 transition-colors last:border-0">
@@ -347,6 +355,60 @@ const Attendance = () => {
                   )}
                 </tbody>
               </table>
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+
+  <span className="text-xs text-gray-400 font-medium">
+    Showing {(currentPage - 1) * itemsPerPage + 1} –
+    {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length}
+  </span>
+
+  <div className="flex items-center gap-1">
+
+    {/* Prev */}
+    <button
+      disabled={currentPage === 1}
+      onClick={() => setCurrentPage((p) => p - 1)}
+      className="px-3 py-1.5 text-xs font-semibold text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-40"
+    >
+      Prev
+    </button>
+
+    {/* Only 5 Pages */}
+    {(() => {
+      const pages = [];
+      const start = Math.max(1, currentPage - 2);
+      const end = Math.min(totalPages, currentPage + 2);
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      return pages.map((page) => (
+        <button
+          key={page}
+          onClick={() => setCurrentPage(page)}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg
+            ${currentPage === page
+              ? "bg-indigo-500 text-white"
+              : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+            }`}
+        >
+          {page}
+        </button>
+      ));
+    })()}
+
+    {/* Next */}
+    <button
+      disabled={currentPage === totalPages}
+      onClick={() => setCurrentPage((p) => p + 1)}
+      className="px-3 py-1.5 text-xs font-semibold text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-40"
+    >
+      Next
+    </button>
+
+  </div>
+</div>
             </div>
           )}
         </div>
