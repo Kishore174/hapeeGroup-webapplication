@@ -19,6 +19,10 @@ import {
   FiX,
 } from "react-icons/fi";
 import { MdStorefront } from "react-icons/md";
+import Select from "react-select";
+import { getUsers } from "../Api/users.api";
+import { axiosInstance } from "../Api/config";
+
 
 // ─── Avatar ────────────────────────────────────────────────────────────────
 const Avatar = ({ name }) => {
@@ -181,7 +185,123 @@ const ShopModal = ({ isEdit, form, setForm, onSubmit, onClose }) => (
     </div>
   </div>
 );
+const AssignModal = ({ users, shops, onClose, onSubmit }) => {
 
+  const userOptions = users.map(u => ({
+    value: u.id,
+    label: u.name,
+    email: u.email
+  }));
+
+  const shopOptions = shops.map(s => ({
+    value: s.id,
+    label: s.shop_name,
+    address: s.address
+  }));
+
+  const [user, setUser] = useState(null);
+  const [selected, setSelected] = useState([]);
+
+  // Custom user option UI
+  const formatUserOption = (option) => (
+    <div className="flex items-center gap-2">
+      <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold">
+        {option.label?.charAt(0)}
+      </div>
+      <div>
+        <div className="text-sm font-semibold">{option.label}</div>
+        <div className="text-xs text-gray-400">{option.email}</div>
+      </div>
+    </div>
+  );
+
+  // Custom shop option UI
+  const formatShopOption = (option) => (
+    <div>
+      <div className="text-sm font-semibold">{option.label}</div>
+      <div className="text-xs text-gray-400 truncate">{option.address}</div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl">
+
+        <h2 className="text-lg font-bold mb-4">Assign Employee to Shops</h2>
+
+        {/* USER SELECT */}
+        <div className="mb-4">
+          <label className="text-xs text-gray-400 mb-1 block">
+            Select Employee
+          </label>
+
+          <Select
+            options={userOptions}
+            value={user}
+            onChange={setUser}
+            placeholder="Search employee..."
+            isSearchable
+            formatOptionLabel={formatUserOption}
+            className="text-sm"
+          />
+        </div>
+
+        {/* SHOP SELECT */}
+        <div className="mb-4">
+          <label className="text-xs text-gray-400 mb-1 block">
+            Select Shops
+          </label>
+
+          <Select
+            isMulti
+            options={shopOptions}
+            value={selected}
+            onChange={setSelected}
+            placeholder="Search & select shops..."
+            isSearchable
+            formatOptionLabel={formatShopOption}
+            className="text-sm"
+          />
+
+          {/* Quick actions */}
+          <div className="flex justify-between mt-2 text-xs">
+            <button
+              onClick={() => setSelected(shopOptions)}
+              className="text-indigo-500 hover:underline"
+            >
+              Select All
+            </button>
+
+            <button
+              onClick={() => setSelected([])}
+              className="text-red-400 hover:underline"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
+        {/* ACTIONS */}
+        <div className="flex gap-3 mt-5">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 bg-gray-100 rounded-xl text-sm font-semibold"
+          >
+            Cancel
+          </button>
+
+          <button
+            onClick={() => onSubmit(user, selected)}
+            className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700"
+          >
+            Assign
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+};
 // ─── Main ──────────────────────────────────────────────────────────────────
 const Shops = () => {
   const [shops, setShops]       = useState([]);
@@ -194,7 +314,10 @@ const itemsPerPage = 10;
   const [isEdit, setIsEdit]     = useState(false);
   const [currentId, setCurrentId] = useState(null);
   const [form, setForm]         = useState(emptyForm);
-
+const [assignOpen, setAssignOpen] = useState(false);
+const [users, setUsers] = useState([]);
+const [selectedUser, setSelectedUser] = useState(null);
+const [selectedShops, setSelectedShops] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null); // { id, name }
 
   const fetchShops = async (isRefresh = false) => {
@@ -210,7 +333,14 @@ const itemsPerPage = 10;
       setRefreshing(false);
     }
   };
-
+const fetchUsers = async () => {
+  try {
+    const res = await getUsers();
+    setUsers(res.data?.data || res.data || []);
+  } catch (err) {
+    console.error(err);
+  }
+};
   useEffect(() => { fetchShops(); }, []);
 
   const filtered = useMemo(() =>
@@ -237,7 +367,35 @@ const paginatedData = useMemo(() => {
     setOpen(false);
     fetchShops();
   };
+ const handleAssignSubmit = async (user, shopsSelected) => {
+  if (!user || shopsSelected.length === 0) {
+    alert("Select employee and shops");
+    return;
+  }
 
+  try {
+    await Promise.all(
+      shopsSelected.map((s) =>
+        axiosInstance.post(`/shops/${s.value}/assign`, {
+          employee_id: user.value,
+        })
+      )
+    );
+
+    alert("Employee assigned successfully");
+    setAssignOpen(false);
+
+  } catch (err) {
+    console.error(err);
+    alert("Assignment failed");
+  }
+};
+const openAssign = () => {
+  fetchUsers();
+  setSelectedUser(null);
+  setSelectedShops([]);
+  setAssignOpen(true);
+};
   const confirmDelete = async () => {
     await deleteShop(deleteTarget.id);
     setDeleteTarget(null);
@@ -265,6 +423,13 @@ useEffect(() => {
               <FiRefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
               Refresh
             </button>
+<button
+  onClick={openAssign}
+  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+>
+  <FiUser size={15} />
+  Assign Employee
+</button>
             <button
               onClick={openAdd}
               className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-indigo-200"
@@ -369,6 +534,7 @@ useEffect(() => {
                         {/* Actions */}
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-2">
+                            
                             <button
                               onClick={() => openEdit(shop)}
                               className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-500 hover:text-white flex items-center justify-center transition-all"
@@ -468,6 +634,14 @@ useEffect(() => {
           onCancel={() => setDeleteTarget(null)}
         />
       )}
+{assignOpen && (
+  <AssignModal
+    users={users}
+    shops={shops}
+    onClose={() => setAssignOpen(false)}
+    onSubmit={handleAssignSubmit}
+  />
+)}
     </div>
   );
 };

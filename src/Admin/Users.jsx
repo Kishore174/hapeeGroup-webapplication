@@ -20,16 +20,14 @@ import {
   FiUserCheck,
   FiChevronDown,
 } from "react-icons/fi";
-import Select from "react-select";
-import { axiosInstance } from "../Api/config";
-import { getShops } from "../Api/shops.api";
+ 
 const emptyForm = {
   name: "",
   email: "",
   phone: "",
   password: "",
   role: "employee",
-  shops: [],
+  // shops: [],
 };
 
 // ─── Avatar ────────────────────────────────────────────────────────────────
@@ -89,11 +87,8 @@ const Field = ({ icon: Icon, label, children }) => (
 );
 
 // ─── Modal ─────────────────────────────────────────────────────────────────
-const UserModal = ({ isEdit, form, setForm, onSubmit, onClose ,shops}) => {
-  const shopOptions = (shops || []).map((shop) => ({
-  value: String(shop.id),
-  label: shop.shop_name,
-}));
+const UserModal = ({ isEdit, form, setForm, onSubmit, onClose}) => {
+ 
   return (
   <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
     <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden">
@@ -168,39 +163,7 @@ const UserModal = ({ isEdit, form, setForm, onSubmit, onClose ,shops}) => {
             </select>
           </div>
         </div>
-<div>
  
-<div>
-  <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-    Assign Shops
-  </label>
-
-  <Select
-    isMulti
-    options={shopOptions}
-    placeholder="Search and select shops..."
-    value={shopOptions.filter((opt) =>
-      form.shops.includes(opt.value)
-    )}
-    onChange={(selected) =>
-      setForm({
-        ...form,
-        shops: selected ? selected.map((s) => s.value) : [],
-      })
-    }
-    className="text-sm"
-    classNamePrefix="select"
-  />
-
-  <p className="text-xs text-gray-400 mt-1">
-    Search and select multiple shops
-  </p>
-</div>
-
-  <p className="text-xs text-gray-400 mt-1">
-    Hold CTRL to select multiple shops
-  </p>
-</div>
         <div className="flex gap-3 pt-2">
           <button
             type="button"
@@ -233,19 +196,10 @@ const Users = () => {
   const [currentId, setCurrentId]   = useState(null);
   const [form, setForm]             = useState(emptyForm);
   const [deletingId, setDeletingId] = useState(null);
-const [shops, setShops] = useState([]);
+// const [shops, setShops] = useState([]);
 const [currentPage, setCurrentPage] = useState(1);
 const itemsPerPage = 10;
-const fetchShops = async () => {
-  try {
-    const res = await getShops();
-    const list = Array.isArray(res.data) ? res.data : res.data?.data;
-    setShops(list || []);
-  } catch (err) {
-    console.error(err);
-    setShops([]);
-  }
-};
+ 
   const fetchUsers = async () => {
     try {
       const res  = await getUsers();
@@ -268,43 +222,31 @@ const fetchShops = async () => {
 
   const openEdit = (user) => {
     setIsEdit(true); setCurrentId(user.id);
-   setForm({
-  name: user.name,
-  email: user.email,
-  phone: user.phone || "",
-  password: "",
-  role: user.role,
-  shops: user.shops ? user.shops.map(s => String(s.id)) : []
-});
+ 
     setIsModalOpen(true);
   };
-
 const handleSubmit = async (e) => {
   e.preventDefault();
 
-  let userId;
+  try {
 
-if (isEdit) {
-  await updateUser(currentId, form);
-  userId = currentId;
-} else {
-  const { shops, ...userData } = form;
-  const res = await createUser(userData);
-  userId = res.data?.id;
-}
-  // Assign shops
-  if (form.shops.length > 0) {
-    await Promise.all(
-      form.shops.map((shopId) =>
-        axiosInstance.post(`/shops/${shopId}/assign`, {
-          employee_id: userId,
-        })
-      )
+    if (isEdit) {
+      await updateUser(currentId, form);
+    } else {
+      await createUser(form);
+    }
+
+    setIsModalOpen(false);
+    fetchUsers();
+
+  } catch (error) {
+    console.error("User save error:", error.response?.data || error.message);
+
+    alert(
+      error.response?.data?.error ||
+      "Something went wrong while saving the user"
     );
   }
-
-  setIsModalOpen(false);
-  fetchUsers();
 };
 
   const handleDelete = async (id) => {
@@ -333,7 +275,7 @@ const paginatedData = useMemo(() => {
 }, [filtered, currentPage]);
 useEffect(() => {
   fetchUsers();
-  fetchShops();
+ 
 }, []);
 useEffect(() => {
   setCurrentPage(1);
@@ -552,7 +494,7 @@ useEffect(() => {
     isEdit={isEdit}
     form={form}
     setForm={setForm}
-    shops={shops}   // ✅ PASS SHOPS HERE
+     // ✅ PASS SHOPS HERE
     onSubmit={handleSubmit}
     onClose={() => setIsModalOpen(false)}
   />
