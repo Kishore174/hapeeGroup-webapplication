@@ -7,20 +7,62 @@ import {
   MdOutlineFactCheck,
   MdOutlineSchedule,
   MdPeopleOutline,
+    MdStorefront,        // ✅ Shops
+  MdAssignmentInd  
 } from "react-icons/md";
 import { FiLogOut, FiChevronRight } from "react-icons/fi";
 import logo from "../Assets/logo.jpg";
 import { useAuth } from "../context/AuthContext";
-
+ 
 const menuItems = [
-  { name: "Dashboard",    path: "/",          icon: MdOutlineDashboard,  roles: ["admin"] },
-  { name: "Users",        path: "/users",     icon: MdPeopleOutline,     roles: ["admin"] },
-  { name: "Check-in Logs",path: "/checkins",  icon: MdOutlineAccessTime, roles: ["admin"] },
-  { name: "Shifts",       path: "/shifts",    icon: MdOutlineSchedule,   roles: ["admin"] },
-  { name: "Attendance",   path: "/attendance",icon: MdOutlineFactCheck,  roles: ["admin"] },
-  { name: "Leaves",       path: "/leaves",    icon: MdOutlineEventBusy,  roles: ["admin"] },
-  { name: "Shops",       path: "/shops",    icon: MdOutlineEventBusy,  roles: ["admin"] },
-
+  {
+    name: "Dashboard",
+    path: "/",
+    icon: MdOutlineDashboard,
+    roles: ["admin"],
+  },
+  {
+    name: "Users",
+    path: "/users",
+    icon: MdPeopleOutline,
+    roles: ["admin"],
+  },
+  {
+    name: "Check-in Logs",
+    path: "/checkins",
+    icon: MdOutlineAccessTime,
+    roles: ["admin"],
+  },
+  {
+    name: "Shifts",
+    path: "/shifts",
+    icon: MdOutlineSchedule,
+    roles: ["admin"],
+  },
+  {
+    name: "Attendance",
+    path: "/attendance",
+    icon: MdOutlineFactCheck,
+    roles: ["admin"],
+  },
+  {
+    name: "Leaves",
+    path: "/leaves",
+    icon: MdOutlineEventBusy,
+    roles: ["admin"],
+  },
+  {
+    name: "Shops",
+    path: "/shops",
+    icon: MdStorefront,        // ✅ better icon
+    roles: ["admin"],
+  },
+  {
+    name: "Assign Shops",
+    path: "/assign",
+    icon: MdAssignmentInd,     // ✅ better icon
+    roles: ["admin"],
+  },
 ];
 
 const Sidebar = ({ isSidebarOpen, setIsSidebarOpen }) => {

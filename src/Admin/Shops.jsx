@@ -316,8 +316,6 @@ const itemsPerPage = 10;
   const [form, setForm]         = useState(emptyForm);
 const [assignOpen, setAssignOpen] = useState(false);
 const [users, setUsers] = useState([]);
-const [selectedUser, setSelectedUser] = useState(null);
-const [selectedShops, setSelectedShops] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null); // { id, name }
 
   const fetchShops = async (isRefresh = false) => {
@@ -333,14 +331,7 @@ const [selectedShops, setSelectedShops] = useState([]);
       setRefreshing(false);
     }
   };
-const fetchUsers = async () => {
-  try {
-    const res = await getUsers();
-    setUsers(res.data?.data || res.data || []);
-  } catch (err) {
-    console.error(err);
-  }
-};
+ 
   useEffect(() => { fetchShops(); }, []);
 
   const filtered = useMemo(() =>
@@ -390,12 +381,7 @@ const paginatedData = useMemo(() => {
     alert("Assignment failed");
   }
 };
-const openAssign = () => {
-  fetchUsers();
-  setSelectedUser(null);
-  setSelectedShops([]);
-  setAssignOpen(true);
-};
+ 
   const confirmDelete = async () => {
     await deleteShop(deleteTarget.id);
     setDeleteTarget(null);
@@ -423,13 +409,7 @@ useEffect(() => {
               <FiRefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
               Refresh
             </button>
-<button
-  onClick={openAssign}
-  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
->
-  <FiUser size={15} />
-  Assign Employee
-</button>
+ 
             <button
               onClick={openAdd}
               className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-indigo-200"
