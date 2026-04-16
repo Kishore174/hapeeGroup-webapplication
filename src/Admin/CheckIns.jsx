@@ -17,8 +17,10 @@ import {
   FiRefreshCw,
   FiTrendingUp,
   FiX,
+  FiDownload,
 } from "react-icons/fi";
-
+import { getUsers } from "../Api/users.api";
+import * as XLSX from "xlsx";
 // ─── Helpers ───────────────────────────────────────────────────────────────
 const fmt = (dt) => {
   if (!dt) return null;
@@ -102,7 +104,8 @@ const PhotoModal = ({ photos, onClose }) => (
 
             {/* Location Type */}
             <p className="text-[11px] font-semibold text-indigo-600 capitalize">
-              {t.location_type}
+              {t.location_type} 
+             <br/>  <span className="text-gray-400 font-normal"> {t.shop_name}</span>
             </p>
 
             {/* Map Link */}
@@ -145,7 +148,7 @@ const StatCard = ({ icon, label, value, sub, iconBg, iconColor, borderColor }) =
 );
 
 // ─── Row ──────────────────────────────────────────────────────────────────
-const AttendanceRow = ({ log, timings, onViewPhotos }) => {
+const AttendanceRow = ({ index, log, timings, onViewPhotos,user }) => {
   const ci = fmt(log.check_in);
   const co = fmt(log.check_out);
   const mins = getDurationMinutes(log);
@@ -155,12 +158,17 @@ const AttendanceRow = ({ log, timings, onViewPhotos }) => {
   return (
     <tr className="border-b border-gray-50 hover:bg-indigo-50/30 transition-colors last:border-0">
       {/* User */}
+          <td className="px-4 py-3">
+        <span className="text-sm text-gray-600 font-mono">
+  {index + 1}
+</span>
+      </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-400 text-white text-xs font-bold flex items-center justify-center shrink-0 font-mono shadow-sm">
-            {String(log.user_id).slice(0, 2).toUpperCase()}
+            {String(user?.name).slice(0, 1).toUpperCase()}
           </div>
-          <span className="font-mono text-sm text-gray-600 font-medium">#{log.user_id}</span>
+          <span className="font-mono text-sm text-gray-600 font-medium">{user?.name }</span>
         </div>
       </td>
 
@@ -249,6 +257,12 @@ const CheckIns = () => {
   const [sortKey, setSortKey] = useState("check_in");
   const [sortDir, setSortDir] = useState("desc");
 const [currentPage, setCurrentPage] = useState(1);
+  const [users, setUsers] = useState([]);
+  const [exportOpen, setExportOpen] = useState(false);
+const [exportFrom, setExportFrom] = useState("");
+const [exportTo, setExportTo] = useState("");
+const [filterFrom, setFilterFrom] = useState("");
+const [filterTo, setFilterTo] = useState("");
 const itemsPerPage = 10;
   const fetchLogs = async () => {
     setLoading(true);
@@ -272,7 +286,19 @@ const itemsPerPage = 10;
   };
 
   useEffect(() => { fetchLogs(); }, []);
+  const fetchUsers = async () => {
+    try {
+      const res = await getUsers();
+      const list = res.data?.data || []; // adjust based on API
+      setUsers(list);
+    } catch (err) {
+      console.error("Error fetching users:", err);
+    }
+  };
 
+  useEffect(() => {
+    fetchUsers();
+  }, []);
   const stats = useMemo(() => {
     const total = logs.length;
     const checkedIn = logs.filter((l) => l.status === "checked_in").length;
@@ -284,22 +310,34 @@ const itemsPerPage = 10;
     return { total, checkedIn, checkedOut, avgDur };
   }, [logs]);
 
-  const filtered = useMemo(() => {
-    let arr = [...logs];
-    if (search) {
-      const q = search.toLowerCase();
-      arr = arr.filter((l) => String(l.user_id).toLowerCase().includes(q));
-    }
-    if (statusFilter !== "all") {
-      arr = arr.filter((l) => l.status === statusFilter);
-    }
-    arr.sort((a, b) => {
-      const av = a[sortKey] ? new Date(a[sortKey]) : 0;
-      const bv = b[sortKey] ? new Date(b[sortKey]) : 0;
-      return sortDir === "asc" ? av - bv : bv - av;
+const filtered = useMemo(() => {
+  let arr = [...logs];
+
+  if (search) {
+    const q = search.toLowerCase();
+
+    arr = arr.filter((l) => {
+      const user = users.find(u => u.id === l.user_id); // 👈 get user
+      const name = user?.name || `User ${l.user_id}`;
+
+      return name.toLowerCase().includes(q);
     });
-    return arr;
-  }, [logs, search, statusFilter, sortKey, sortDir]);
+  }
+
+  if (statusFilter !== "all") {
+    arr = arr.filter((l) => l.status === statusFilter);
+  }
+ if (statusFilter !== "all") { arr = arr.filter(l => l.status === statusFilter); }
+  if (filterFrom) arr = arr.filter(l => l.check_in && l.check_in.slice(0,10) >= filterFrom);
+  if (filterTo)   arr = arr.filter(l => l.check_in && l.check_in.slice(0,10) <= filterTo);
+  arr.sort((a, b) => {
+    const av = a[sortKey] ? new Date(a[sortKey]) : 0;
+    const bv = b[sortKey] ? new Date(b[sortKey]) : 0;
+    return sortDir === "asc" ? av - bv : bv - av;
+  });
+
+  return arr;
+}, [logs, users, search, statusFilter, filterFrom, filterTo, sortKey, sortDir]);
 const totalPages = Math.ceil(filtered.length / itemsPerPage);
 
 const paginatedData = useMemo(() => {
@@ -310,7 +348,61 @@ const paginatedData = useMemo(() => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(key); setSortDir("desc"); }
   };
-
+  const setQuickDate = (preset) => {
+  const now = new Date();
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  let from = new Date(now);
+  if (preset === "today")   { /* same day */ }
+  else if (preset === "week")   { from.setDate(now.getDate() - now.getDay()); }
+  else if (preset === "month")  { from = new Date(now.getFullYear(), now.getMonth(), 1); }
+  else if (preset === "last30") { from.setDate(now.getDate() - 30); }
+  else if (preset === "last90") { from.setDate(now.getDate() - 90); }
+  setExportFrom(fmt(from));
+  setExportTo(fmt(now));
+};
+const handleExport = () => {
+  if (!exportFrom || !exportTo) return;
+  const range = filtered.filter((log) => {
+    const d = log.check_in?.slice(0, 10);
+    return d >= exportFrom && d <= exportTo;
+  });
+  const data = range.map((log) => {
+    const user = users.find((u) => u.id === log.user_id);
+    const mins = getDurationMinutes(log);
+    return {
+      Name: user?.name || log.user_id,
+      Status: log.status,
+      "Check In": log.check_in || "",
+      "Check Out": log.check_out || "",
+      Duration: log.work_duration || formatDuration(mins) || "",
+      Photos: (timingsMap[log.id] || []).filter((t) => t.photo_url).length,
+    };
+  });
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+  XLSX.writeFile(wb, `attendance_${exportFrom}_to_${exportTo}.xlsx`);
+  setExportOpen(false);
+};
+// const exportToExcel = () => {
+//   import("xlsx").then(XLSX => {
+//     const data = filtered.map(log => {
+//       const user = users.find(u => u.id === log.user_id);
+//       return {
+//         Name: user?.name || log.user_id,
+//         Status: log.status,
+//         "Check In": log.check_in || "",
+//         "Check Out": log.check_out || "",
+//         Duration: log.work_duration || "",
+//       };
+//     });
+//     const ws = XLSX.utils.json_to_sheet(data);
+//     const wb = XLSX.utils.book_new();
+//     XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+//     XLSX.writeFile(wb, `attendance_${exportFrom}_${exportTo}.xlsx`);
+//     setExportOpen(false);
+//   });
+// };
   const SortIndicator = ({ col }) =>
     sortKey === col ? (
       <span className="ml-1">{sortDir === "asc" ? "↑" : "↓"}</span>
@@ -334,6 +426,7 @@ useEffect(() => {
             <p className="text-sm text-gray-400 mt-0.5">Track check-ins, check-outs & durations</p>
           </div>
         </div>
+        <div className="flex space-x-5 ">
         <button
           onClick={fetchLogs}
           disabled={loading}
@@ -342,6 +435,13 @@ useEffect(() => {
           <FiRefreshCw size={15} className={loading ? "animate-spin" : ""} />
           Refresh
         </button>
+<button
+  onClick={() => { setExportOpen(true); setQuickDate("month"); }}
+  className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-sm font-semibold text-green-700 hover:bg-green-600 hover:text-white hover:border-green-600 transition-all"
+>
+  <FiDownload size={15} /> Export Excel
+</button>
+</div>
       </header>
 
       {/* ── Stats ── */}
@@ -389,7 +489,14 @@ useEffect(() => {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-
+<div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl">
+  <FiCalendar size={13} className="text-indigo-500" />
+  <span className="text-xs text-gray-400">From</span>
+  <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className="text-xs border-none outline-none bg-transparent" />
+  <span className="text-gray-300">→</span>
+  <span className="text-xs text-gray-400">To</span>
+  <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} className="text-xs border-none outline-none bg-transparent" />
+</div>
         <div className="relative flex items-center">
           <FiFilter size={14} className="absolute left-3.5 text-gray-400 pointer-events-none" />
           <select
@@ -422,6 +529,9 @@ useEffect(() => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100/80 border-b-2 border-gray-100">
+                 <th className="px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                    S.No
+                  </th>
                   <th className="px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
                     User
                   </th>
@@ -457,12 +567,14 @@ useEffect(() => {
                     </td>
                   </tr>
                 ) : (
-                 paginatedData.map((log) => (
+                 paginatedData.map((log, index) => (
                     <AttendanceRow
                       key={log.id}
                       log={log}
+                      index={index} 
                       timings={timingsMap[log.id] || []}
                       onViewPhotos={setModalPhotos}
+                      user={users.find((u) => u.id === log.user_id)}
                     />
                   ))
                 )}
@@ -530,6 +642,67 @@ useEffect(() => {
       {modalPhotos && (
         <PhotoModal photos={modalPhotos} onClose={() => setModalPhotos(null)} />
       )}
+      {exportOpen && (
+  <div
+    className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
+    onClick={() => setExportOpen(false)}
+  >
+    <div
+      className="bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-sm mx-4 overflow-hidden"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="p-6">
+        <div className="w-10 h-10 rounded-xl bg-green-50 border border-green-200 flex items-center justify-center mb-3">
+          <FiDownload size={18} className="text-green-600" />
+        </div>
+        <h2 className="text-base font-semibold text-gray-800 mb-1">Export attendance to Excel</h2>
+        <p className="text-xs text-gray-400 mb-5">Select a date range to download the report</p>
+
+        {/* Quick chips */}
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">Quick select</p>
+        <div className="flex flex-wrap gap-2 mb-5">
+          {[["today","Today"],["week","This week"],["month","This month"],["last30","Last 30 days"],["last90","Last 90 days"]].map(([k,label]) => (
+            <button key={k} onClick={() => setQuickDate(k)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-gray-50 text-gray-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-600 transition-all">
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Date pickers */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1.5 block">From</label>
+            <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1.5 block">To</label>
+            <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+          </div>
+        </div>
+
+        {/* Info */}
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 text-xs mb-5">
+          <FiCalendar size={12} /> Includes name, status, check-in, check-out, duration &amp; photos count
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button onClick={() => setExportOpen(false)}
+            className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all">
+            Cancel
+          </button>
+          <button onClick={handleExport}
+            className="flex-[2] py-2.5 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 flex items-center justify-center gap-2 transition-all">
+            <FiDownload size={14} /> Download Excel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };
